@@ -1,10 +1,11 @@
 <?php
 
-use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\BoardController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\NoteLinkController;
 use App\Http\Controllers\StickyNoteController;
+use App\Http\Controllers\NotificationController;
 
 // Redirect root to login
 Route::get('/', function () {
@@ -43,7 +44,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('boards/{board}/notes', [StickyNoteController::class, 'store'])->name('boards.notes.store');
     Route::get('boards/{board}/notes/{note}', [StickyNoteController::class, 'show'])->name('boards.notes.show');
     Route::post('/notes/{id}/archive', [StickyNoteController::class, 'archive'])->name('notes.archive');
-    Route::post('/notes/{id}/update', [StickyNoteController::class, 'update'])->name('notes.update');
+    Route::post('/notes/{id}/update', [StickyNoteController::class, 'update']);
+    Route::get('/notes/{id}/linked', [NoteLinkController::class, 'fetchLinkedNotes']);
+    Route::post('/note-links', [NoteLinkController::class, 'store']);
+    // Fetch all notes for a board (for dropdown)
+    Route::get('/boards/{board}/notes-list', function (App\Models\Board $board) {
+        return response()->json([
+            'notes' => $board->stickyNotes()->where('is_archived', false)->select('id', 'title')->get(),
+        ]);
+    });
+
+    // Unlink notes (you need this method, see controller below)
+    Route::post('/note-links/unlink', [App\Http\Controllers\NoteLinkController::class, 'unlinkNotes']);
+
+
+
 
 
     // =====================================

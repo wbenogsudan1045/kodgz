@@ -42,4 +42,22 @@ class StickyNote extends Model
         return $this->belongsTo(User::class);
     }
 
+    // app/Models/StickyNote.php
+    public function linkedNotesA()
+    {
+        return $this->hasMany(NoteLink::class, 'note_a_id');
+    }
+
+    public function linkedNotesB()
+    {
+        return $this->hasMany(NoteLink::class, 'note_b_id');
+    }
+
+    // Optional helper to get all connected notes
+    public function allLinkedNotes()
+    {
+        return $this->linkedNotesA->merge($this->linkedNotesB);
+    }
+
+
 }

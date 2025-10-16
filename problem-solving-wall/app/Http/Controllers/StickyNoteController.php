@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Board;
 use App\Models\StickyNote;
+use App\Models\NoteLink;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Notification;
@@ -12,38 +13,51 @@ use Illuminate\Support\Facades\Storage;
 
 class StickyNoteController extends Controller
 {
+    // ===============================
+    // 📋 List notes for a board (used by route: GET boards/{board}/notes)
+    // ===============================
     public function index(Board $board)
-    {
-        $notes = $board->notes()->with('user')->get();
-        return view('notes.index', compact('board', 'notes'));
-    }
-
-    public function show(Board $board)
     {
         $notes = StickyNote::where('board_id', $board->id)
             ->where('is_archived', false)
             ->get();
 
-        return view('board-tab', compact('board', 'notes'));
+        // Return JSON for API endpoints used by frontend (dropdowns etc.)
+        // If you prefer to return a view here, change accordingly.
+        return response()->json([
+            'notes' => $notes
+        ]);
     }
 
-
-    public function create(Board $board)
+    // ===============================
+    // 🧾 Show single note (boards/{board}/notes/{note})
+    // ===============================
+    public function show(Board $board, StickyNote $note)
     {
-        return view('notes.create', compact('board'));
+        // Ensure the note belongs to the board
+        if ($note->board_id !== $board->id) {
+            return response()->json(['error' => 'Note not found on this board.'], 404);
+        }
+
+        return response()->json([
+            'note' => $note
+        ]);
     }
 
+    // ===============================
+    // 🧱 Create Note
+    // ===============================
     public function store(Request $request, Board $board)
     {
         $request->validate([
             'title' => 'nullable|string|max:255',
             'content' => 'required|string',
             'color' => 'required|in:red,yellow,green',
-            'attachment' => 'nullable|file|max:5120', // ✅ 5MB max
+            'attachment' => 'nullable|file|max:5120', // 5MB
+            'linked_note_id' => 'nullable|exists:sticky_notes,id', // optional link
         ]);
 
         $attachmentPath = null;
-
         if ($request->hasFile('attachment')) {
             $attachmentPath = $request->file('attachment')->store('attachments', 'public');
         }
@@ -53,13 +67,24 @@ class StickyNoteController extends Controller
             'title' => $request->title,
             'content' => $request->content,
             'color' => $request->color,
-            'user_id' => auth()->id(),
-            'attachment' => $attachmentPath, // ✅ new
+            'user_id' => Auth::id(),
+            'attachment' => $attachmentPath,
         ]);
 
-        // Notify board members
-        $members = $board->users()->where('users.id', '!=', Auth::id())->get();
+        // Optionally create a link to an existing note on same board (if provided)
+        if ($request->filled('linked_note_id')) {
+            $linkedId = $request->input('linked_note_id');
+            // Prevent linking to self and ensure the linked note exists
+            if ($linkedId != $note->id) {
+                NoteLink::firstOrCreate([
+                    'note_a_id' => $note->id,
+                    'note_b_id' => $linkedId,
+                ]);
+            }
+        }
 
+        // Notify other board members
+        $members = $board->users()->where('users.id', '!=', Auth::id())->get();
         if ($members->count() > 0) {
             Notification::send(
                 $members,
@@ -72,10 +97,93 @@ class StickyNoteController extends Controller
 
         return redirect()
             ->route('boards.show', $board->id)
-            ->with('success', 'Sticky note added successfully with attachment!');
+            ->with('success', 'Sticky note added successfully!');
     }
 
+    // ===============================
+// ✏️ Update (Edit) Note
+// ===============================
+    public function update(Request $request, $id)
+    {
+        $note = StickyNote::findOrFail($id);
+        $board = $note->board;
 
+        // Authorization check
+        if (Auth::id() !== $note->user_id && Auth::id() !== $board->user_id) {
+            return response()->json(['error' => 'Unauthorized action.'], 403);
+        }
+
+        $validated = $request->validate([
+            'title' => 'nullable|string|max:255',
+            'content' => 'nullable|string',
+            'color' => 'required|in:red,yellow,green',
+            'attachment' => 'nullable|file|max:5120',
+        ]);
+
+        // Replace old attachment if new one is uploaded
+        if ($request->hasFile('attachment')) {
+            if ($note->attachment && Storage::disk('public')->exists($note->attachment)) {
+                Storage::disk('public')->delete($note->attachment);
+            }
+            $note->attachment = $request->file('attachment')->store('attachments', 'public');
+            $note->save();
+        }
+
+        // Update the note fields
+        $note->update([
+            'title' => $validated['title'] ?? $note->title,
+            'content' => $validated['content'] ?? $note->content,
+            'color' => $validated['color'] ?? $note->color,
+        ]);
+
+        // Notify other board members
+        $members = $board->users()->where('users.id', '!=', Auth::id())->get();
+        if ($members->count() > 0) {
+            Notification::send(
+                $members,
+                new BoardActivityNotification(
+                    $board,
+                    Auth::user()->name . ' edited a note: ' . ($note->title ?? 'Untitled')
+                )
+            );
+        }
+
+        return response()->json(['success' => true, 'message' => 'Note updated successfully']);
+    }
+
+    // ===============================
+// 🗂️ Archive (Soft Delete) Note
+// ===============================
+    public function archive($id)
+    {
+        $note = StickyNote::findOrFail($id);
+        $board = $note->board;
+
+        // Authorization check
+        if (Auth::id() !== $note->user_id && Auth::id() !== $board->user_id) {
+            return response()->json(['error' => 'Unauthorized action.'], 403);
+        }
+
+        $note->is_archived = true;
+        $note->save();
+
+        $members = $board->users()->where('users.id', '!=', Auth::id())->get();
+        if ($members->count() > 0) {
+            Notification::send(
+                $members,
+                new BoardActivityNotification(
+                    $board,
+                    Auth::user()->name . ' archived a note: ' . ($note->title ?? 'Untitled')
+                )
+            );
+        }
+
+        return response()->json(['message' => 'Note archived successfully.']);
+    }
+
+    // ===============================
+    // 📦 Move Note (drag)
+    // ===============================
     public function move(Request $request, StickyNote $note)
     {
         $note->update([
@@ -85,51 +193,4 @@ class StickyNoteController extends Controller
 
         return response()->json(['success' => true]);
     }
-    public function archive($id)
-    {
-        $note = StickyNote::findOrFail($id);
-
-        // ✅ Instead of deleting, we just "soft delete" or mark as archived
-        $note->is_archived = true;
-        $note->save();
-
-        return response()->json(['message' => 'Note archived successfully.']);
-    }
-
-    public function update(Request $request, $id)
-    {
-        $note = StickyNote::findOrFail($id);
-
-        // validation: title nullable (same as store), content nullable, color restricted to your three options
-        $validated = $request->validate([
-            'title' => 'nullable|string|max:255',
-            'content' => 'nullable|string',
-            'color' => 'required|in:red,yellow,green',
-            'attachment' => 'nullable|file|max:5120', // 5 MB
-        ]);
-
-        // If a new attachment is uploaded, remove the old one (if any) and store new one
-        if ($request->hasFile('attachment')) {
-            // delete old file if exists
-            if ($note->attachment && Storage::disk('public')->exists($note->attachment)) {
-                Storage::disk('public')->delete($note->attachment);
-            }
-
-            $path = $request->file('attachment')->store('attachments', 'public');
-            $note->attachment = $path;
-        }
-
-        // Update fields (keep existing if not provided)
-        $note->title = $validated['title'] ?? $note->title;
-        $note->content = $validated['content'] ?? $note->content;
-        $note->color = $validated['color'] ?? $note->color;
-        $note->save();
-
-        return response()->json(['success' => true, 'message' => 'Note updated']);
-    }
-
-
-
-
-
 }

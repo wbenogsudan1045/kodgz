@@ -1,11 +1,15 @@
-<!-- resources/views/components/note-add-button.blade.php -->
-<div x-data="{ open: false }">
+<div x-data="{ open: false, notes: [] }" x-init="
+    fetch('/boards/{{ $board->id }}/notes-list')
+        .then(res => res.json())
+        .then(data => notes = data.notes || [])
+        .catch(()=> notes = [])
+">
     <!-- Floating Add Button -->
     <button @click="open = true"
         class="fixed bottom-6 right-6 w-12 h-12 rounded-full bg-green-400 flex items-center justify-center shadow-lg hover:bg-green-500 transition">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-black" fill="none" viewBox="0 0 24 24"
-            stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        <svg xmlns='http://www.w3.org/2000/svg' class='h-6 w-6 text-black' fill='none' viewBox='0 0 24 24'
+            stroke='currentColor'>
+            <path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M12 4v16m8-8H4' />
         </svg>
     </button>
 
@@ -39,10 +43,21 @@
                     </select>
                 </div>
 
-                <!-- ✅ Attachment Field -->
+                <!-- Attachment -->
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700">Attachment (optional)</label>
                     <input type="file" name="attachment" class="w-full border rounded-md px-3 py-2">
+                </div>
+
+                <!-- Link to Existing Note (by id) -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Link to Note (optional)</label>
+                    <select name="linked_note_id" class="w-full border rounded-md px-3 py-2 text-sm text-gray-700">
+                        <option value="">— None —</option>
+                        <template x-for="n in notes" :key="n.id">
+                            <option :value="n.id" x-text="n.title || 'Untitled'"></option>
+                        </template>
+                    </select>
                 </div>
 
                 <div class="flex justify-end">
@@ -52,7 +67,6 @@
                     </button>
                 </div>
             </form>
-
         </div>
     </div>
 </div>

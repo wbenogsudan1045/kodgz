@@ -16,7 +16,7 @@
                 <div class="note absolute max-w-[200px] p-3 rounded shadow cursor-move select-none text-white break-words whitespace-normal"
                     data-id="{{ $note->id }}" data-title="{{ $note->title ?? 'Untitled' }}" data-content="{{ $note->content }}"
                     data-color="{{ $note->color }}" data-author="{{ $note->user->name ?? 'Unknown' }}"
-                    data-attachment="{{ $note->attachment_url }}"
+                    data-author-id="{{ $note->user_id }}" data-attachment="{{ $note->attachment_url }}"
                     style="left: {{ $note->x }}px; top: {{ $note->y }}px; background-color: {{ $note->color }};">
                 </div>
             @endforeach
@@ -33,6 +33,5 @@
             </div>
         @endif
     </div>
-
 
     <x-board-script :board="$board" />
