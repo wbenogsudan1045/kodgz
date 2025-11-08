@@ -9,7 +9,7 @@
                 <a href="{{ route('dashboard') }}"
                     class="w-10 h-10 flex items-center justify-center rounded-md font-bold text-gray-800 hover:bg-yellow-400 transition"
                     style="background-color: #fde68a;">
-                    GS
+                    TD
                 </a>
             </div>
 
@@ -64,15 +64,15 @@
                     <x-slot name="content">
                         <div class="max-h-64 overflow-y-auto space-y-2">
                             @forelse(auth()->user()->notifications as $notification)
-                                        <a href="{{ route('notifications.read', $notification->id) }}"
-                                            class="block px-3 py-2 rounded-md text-sm transition 
-                                {{ $notification->read_at ? 'bg-yellow-50 text-gray-700' : 'bg-yellow-200 font-semibold text-black' }} hover:bg-yellow-300">
-                                            <p>{{ $notification->data['message'] }}</p>
-                                            <p class="text-xs text-gray-600">
-                                                Board: {{ $notification->data['board_name'] }} ·
-                                                {{ $notification->created_at->diffForHumans() }}
-                                            </p>
-                                        </a>
+                                <a href="{{ route('notifications.read', $notification->id) }}"
+                                    class="block px-3 py-2 rounded-md text-sm transition 
+                                    {{ $notification->read_at ? 'bg-yellow-50 text-gray-700' : 'bg-yellow-200 font-semibold text-black' }} hover:bg-yellow-300">
+                                    <p>{{ $notification->data['message'] }}</p>
+                                    <p class="text-xs text-gray-600">
+                                        Board: {{ $notification->data['board_name'] }} ·
+                                        {{ $notification->created_at->diffForHumans() }}
+                                    </p>
+                                </a>
                             @empty
                                 <p class="text-sm text-gray-600 px-3 py-2">No notifications yet.</p>
                             @endforelse

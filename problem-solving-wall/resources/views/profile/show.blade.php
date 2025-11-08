@@ -31,33 +31,40 @@
                 </div>
             </div>
 
-            <!-- Main Layout -->
+            <!-- Notes Area -->
             <div class="mt-10 grid grid-cols-3 gap-6 relative">
-                <!-- Left Section: Notes Area -->
+                <!-- Left Section -->
                 <div class="col-span-2 relative border rounded-lg bg-gray-50 h-[500px] overflow-hidden"
                     id="notes-container">
                     <h2 class="text-lg font-semibold text-gray-700 mb-2 pl-4 pt-3">Recently made notes:</h2>
 
-                    @forelse ($user->stickyNotes()->latest()->take(12)->get() as $note)
+                    @php
+                        $myNotes = $user->stickyNotes()
+                            ->where('user_id', auth()->id())
+                            ->latest()
+                            ->take(12)
+                            ->get();
+                    @endphp
+
+                    @forelse ($myNotes as $note)
                         <div class="note absolute cursor-move rounded-lg shadow-lg p-2 text-center text-sm font-medium transition-transform hover:scale-105"
                             title="{{ $note->content }}" style="
-                                    background-color: {{ $note->color }};
-                                    top: {{ $note->pos_y ?? rand(80, 400) }}px;
-                                    left: {{ $note->pos_x ?? rand(40, 600) }}px;
-                                    width: 100px;
-                                    height: 100px;
-                                    word-wrap: break-word;
-                                    overflow: hidden;
-                                    text-overflow: ellipsis;
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: center;
-                                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-                                    color: black;
-                                " data-id="{{ $note->id }}" data-title="{{ $note->title }}" data-color="{{ $note->color }}"
-                            data-author="{{ $note->user->name }}" data-content="{{ $note->content }}">
-                            <p class="leading-snug break-words text-center w-full h-full overflow-hidden text-ellipsis"
-                                style="color: black;">
+                                background-color: {{ $note->color }};
+                                top: {{ $note->pos_y ?? rand(80, 400) }}px;
+                                left: {{ $note->pos_x ?? rand(40, 600) }}px;
+                                width: 100px;
+                                height: 100px;
+                                word-wrap: break-word;
+                                overflow: hidden;
+                                text-overflow: ellipsis;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+                                color: black;
+                            "
+                            data-id="{{ $note->id }}">
+                            <p class="leading-snug break-words text-center w-full h-full overflow-hidden text-ellipsis">
                                 {{ Str::limit($note->content, 80) }}
                             </p>
                         </div>
@@ -66,7 +73,7 @@
                     @endforelse
                 </div>
 
-                <!-- Right Section: Color Summary -->
+                <!-- Right Section -->
                 <div class="flex flex-col items-center space-y-4">
                     <div class="bg-green-200 px-8 py-4 rounded-lg w-48 text-center shadow">
                         <p class="font-medium text-gray-700">Green Notes</p>
@@ -82,17 +89,73 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Hidden Sidebar Elements (for board-script) -->
-            <div class="hidden">
-                <h3 id="sidebar-title"></h3>
-                <p id="sidebar-color"></p>
-                <p id="sidebar-author"></p>
-                <p id="sidebar-description"></p>
-            </div>
         </div>
     </div>
 
-    <!-- Include existing draggable script -->
-    @include('components.board-script')
+    <!-- 🧠 Independent Note Drag Script -->
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const notes = document.querySelectorAll(".note");
+            const container = document.getElementById("notes-container");
+
+            let activeNote = null;
+            let offsetX = 0, offsetY = 0;
+
+            notes.forEach(note => {
+                note.addEventListener("mousedown", e => {
+                    activeNote = note;
+                    const rect = note.getBoundingClientRect();
+                    const containerRect = container.getBoundingClientRect();
+                    offsetX = e.clientX - rect.left;
+                    offsetY = e.clientY - rect.top;
+                    note.style.zIndex = 1000;
+                    note.style.transition = "none";
+                    e.preventDefault();
+                });
+            });
+
+            document.addEventListener("mousemove", e => {
+                if (!activeNote) return;
+                const containerRect = container.getBoundingClientRect();
+                const noteRect = activeNote.getBoundingClientRect();
+
+                let x = e.clientX - containerRect.left - offsetX;
+                let y = e.clientY - containerRect.top - offsetY;
+
+                // Clamp inside the container boundaries
+                const maxX = containerRect.width - noteRect.width;
+                const maxY = containerRect.height - noteRect.height;
+                x = Math.max(0, Math.min(x, maxX));
+                y = Math.max(0, Math.min(y, maxY));
+
+                activeNote.style.left = `${x}px`;
+                activeNote.style.top = `${y}px`;
+            });
+
+            document.addEventListener("mouseup", () => {
+                if (!activeNote) return;
+
+                const noteId = activeNote.dataset.id;
+                const x = parseFloat(activeNote.style.left);
+                const y = parseFloat(activeNote.style.top);
+
+                // Save note position
+                fetch(`/notes/${noteId}/move`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-TOKEN": "{{ csrf_token() }}"
+                    },
+                    body: JSON.stringify({ x, y })
+                })
+                    .then(res => res.json())
+                    .then(data => console.log("✅ Note position saved:", data))
+                    .catch(err => console.error("❌ Error saving position:", err));
+
+                activeNote.style.zIndex = "";
+                activeNote.style.transition = "all 0.1s ease-out";
+                activeNote = null;
+            });
+        });
+    </script>
 </x-app-layout>

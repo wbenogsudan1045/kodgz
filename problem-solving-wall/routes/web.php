@@ -47,6 +47,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/notes/{id}/update', [StickyNoteController::class, 'update']);
     Route::get('/notes/{id}/linked', [NoteLinkController::class, 'fetchLinkedNotes']);
     Route::post('/note-links', [NoteLinkController::class, 'store']);
+    Route::post('/notes/{id}/remove-attachment', [StickyNoteController::class, 'removeAttachment']);
+
     // Fetch all notes for a board (for dropdown)
     Route::get('/boards/{board}/notes-list', function (App\Models\Board $board) {
         return response()->json([

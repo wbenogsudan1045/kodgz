@@ -193,4 +193,18 @@ class StickyNoteController extends Controller
 
         return response()->json(['success' => true]);
     }
+    public function removeAttachment($id)
+    {
+        $note = StickyNote::findOrFail($id);
+
+        if ($note->attachment && Storage::exists($note->attachment)) {
+            Storage::delete($note->attachment);
+        }
+
+        $note->attachment = null;
+        $note->save();
+
+        return response()->json(['message' => 'Attachment removed.']);
+    }
+
 }
